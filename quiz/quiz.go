@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // question struct stores a single question and its corresponding answer.
@@ -25,7 +26,7 @@ func check(e error) {
 
 // questions reads in questions and corresponding answers from a CSV file into a slice of question structs.
 func questions() []question {
-	f, err := os.Open("quiz-questions.csv")
+	f, err := os.Open("/home/qwerty/IdeaProjects/golab2/quiz/quiz-questions.csv")
 	check(err)
 	reader := csv.NewReader(f)
 	table, err := reader.ReadAll()
@@ -37,8 +38,7 @@ func questions() []question {
 	return questions
 }
 
-// ask asks a question and returns an updated score depending on the answer.
-func ask(s score, question question) score {
+func ask(s score, question question, channel chan score) {
 	fmt.Println(question.q)
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Print("Enter answer: ")
@@ -50,14 +50,29 @@ func ask(s score, question question) score {
 	} else {
 		fmt.Println("Incorrect :-(")
 	}
-	return s
+	channel <- s
+}
+
+func askQuestions(reschan chan score) {
+	s := score(0)
+	qs := questions()
+	channel := make(chan score)
+
+	for _, q := range qs {
+		go ask(s, q, channel)
+		s = <-channel
+	}
+	reschan <- s
 }
 
 func main() {
-	s := score(0)
-	qs := questions()
-	for _, q := range qs {
-		s = ask(s, q)
-	}
+	reschan := make(chan score)
+	go askQuestions(reschan)
+
+	time.Sleep(500 * time.Millisecond)
+
+	s := <-reschan
 	fmt.Println("Final score", s)
+
+	os.Exit(0)
 }
